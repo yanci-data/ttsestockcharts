@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Stock Chart</title>
+<title>TTSE Stock Chart</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;600;700&display=swap" rel="stylesheet">
@@ -43,7 +43,7 @@
   </div>
 
 <script>
-const WORKER = "https://YOUR_WORKER_BASE.workers.dev";
+const WORKER = "https://YOUR_WORKER_BASE.workers.dev"; // <-- change this
 const qp = new URLSearchParams(location.search);
 const symbol = (qp.get("symbol") || "").toUpperCase();
 document.getElementById("t").textContent = symbol ? `${symbol} – Price & Activity` : "Missing symbol";

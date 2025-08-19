@@ -1,6 +1,8 @@
 <!doctype html><meta charset="utf-8">
+<title>TTSE Chart</title>
 <script>
   const u = new URL(location.href);
   const sym = (u.searchParams.get('symbol') || 'PHL').toUpperCase();
-  location.replace(`./stock-chart.html?symbol=${encodeURIComponent(sym)}`);
+  // Redirect to your actual chart file:
+  location.replace(`./ttsestockcharts.html?symbol=${encodeURIComponent(sym)}`);
 </script>

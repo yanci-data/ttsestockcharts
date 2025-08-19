@@ -43,7 +43,7 @@
   </div>
 
 <script>
-const WORKER = "https://YOUR_WORKER_BASE.workers.dev"; // <-- change this
+const WORKER = "https://ttse-adaptor.technology-data.workers.dev/"; // <-- change this
 const qp = new URLSearchParams(location.search);
 const symbol = (qp.get("symbol") || "").toUpperCase();
 document.getElementById("t").textContent = symbol ? `${symbol} – Price & Activity` : "Missing symbol";

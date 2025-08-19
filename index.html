@@ -1,0 +1,6 @@
+<!doctype html><meta charset="utf-8">
+<script>
+  const u = new URL(location.href);
+  const sym = (u.searchParams.get('symbol') || 'PHL').toUpperCase();
+  location.replace(`./stock-chart.html?symbol=${encodeURIComponent(sym)}`);
+</script>

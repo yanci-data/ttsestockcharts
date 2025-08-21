@@ -1,87 +1,609 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>TTSE Stock Chart</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Market Series</title>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<!-- Sheet / PDF -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<!-- Flatpickr -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+
 <style>
-  :root{ --navy:#0b1f44; --ink:#0f172a; --muted:#667085; --card:#fff; --border:rgba(11,31,68,.12); }
-  html,body{ margin:0; background:transparent; color:var(--ink);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif }
-  .wrap{ max-width:920px; margin:0 auto; padding:12px; }
-  .card{ background:var(--card); border-radius:18px; padding:16px; border:1px solid var(--border); }
-  .header{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
-  .title{ font-size:18px; font-weight:700; color:var(--navy); }
-  .tabs{ display:flex; gap:6px; flex-wrap:wrap; }
-  .tab{ border:1px solid var(--border); background:#f8fafc; padding:6px 10px; border-radius:12px; font-size:12px; cursor:pointer }
-  .tab.active{ background:#e6f0ff; border-color:#c7d7ff; }
-  canvas{ width:100%; height:420px; border-radius:14px; }
-  .muted{ font-size:12px; color:var(--muted); }
+:root{
+  --navy:#0b1f44; --blue:#1f6feb; --ink:#0f172a; --muted:#667085;
+  --border:rgba(11,31,68,.12); --card:#fff;
+  --up:#118a36; --dn:#b00020;
+  --ma20:#7c3aed; --ma50:#0ea5e9; --ma200:#16a34a;
+  --r-card:18px; --r-surface:16px; --r-pill:999px;
+  --focus-ring:0 0 0 2px rgba(31,111,235,.18);
+}
+html,body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:var(--ink);background:#f7f9fc;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r-card);padding:16px;max-width:1280px;margin:16px auto;}
+.panel-sub{font-size:12px;color:var(--muted);margin-bottom:10px;}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;}
+.pillset{display:flex;flex-wrap:wrap;gap:6px;}
+.btn{appearance:none;border:1px solid rgba(11,31,68,.18);background:#fff;color:var(--navy);padding:6px 12px;border-radius:var(--r-pill);font-size:12px;cursor:pointer;transition:.15s;}
+.btn:hover{background:#f2f6fc;}
+.btn.active,.btn:focus{border-color:var(--blue);box-shadow:var(--focus-ring);outline:none;}
+.label{font-size:12px;color:var(--muted);}
+.input{padding:6px 10px;border:1px solid rgba(11,31,68,.18);border-radius:var(--r-pill);font-size:12px;width:120px;}
+.input:focus{border-color:var(--blue);box-shadow:var(--focus-ring);outline:none;}
+.check{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);}
+.break{flex-basis:100%;height:0;}
+.statbar{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:end;margin:4px 0 6px;}
+.metricCol{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end;}
+.metricCol.right{justify-content:flex-end;text-align:right;}
+.metric{display:flex;flex-direction:column;min-width:140px;row-gap:2px;}
+.metric .num,.metric .chg{font-size:16px;white-space:nowrap;line-height:1.2;}
+.metric .tag{font-size:11px;color:var(--muted);}
+.up{color:var(--up);} .down{color:var(--dn);}
+.chart-wrap{position:relative;border:1px solid var(--border);border-radius:var(--r-surface);background:#fff;}
+.plot{height:360px;}
+.vol{height:80px;border-top:1px solid var(--border);}
+.empty{position:absolute;inset:0;display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;font-size:13px;color:var(--muted);background:repeating-linear-gradient(45deg,rgba(0,0,0,0.02),rgba(0,0,0,0.02) 8px,rgba(0,0,0,0.04) 8px,rgba(0,0,0,0.04) 16px);text-align:center;padding:0 14px;z-index:3;pointer-events:none;}
+.empty.hidden{display:none!important;}
+.facts{margin-top:10px;}
+.facts-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 32px;}
+.kv{display:grid;grid-template-columns:auto 1fr auto;column-gap:8px;font-size:13px;align-items:center;}
+.kv .k{font-weight:500;}
+.kv .rule{border-bottom:1px dotted #D0D5DD;height:1px;}
+.kv .v{text-align:right;font-weight:400;}
+@media (max-width:780px){
+  .statbar{grid-template-columns:1fr;}
+  .metricCol.right{justify-content:flex-start;text-align:left;}
+  .facts-grid{grid-template-columns:1fr;}
+}
+/* Make every canvas truly transparent (prevents faint blue) */
+canvas{background-color:transparent !important}
+
+/* Date Picker Custom Styling */
+.flatpickr-calendar {
+  border-radius: 16px;
+  box-shadow: 0 14px 32px rgba(11,31,68,.22);
+  z-index: 99999;
+  width: 340px;
+}
+.flatpickr-current-month { display:flex; align-items:center; justify-content:center; height:38px; padding:12px 0; gap:16px; }
+.flatpickr-months .flatpickr-month { padding:14px 12px 16px; }
+.flatpickr-current-month select.flatpickr-monthDropdown-months,
+.flatpickr-current-month .numInputWrapper {
+  font-weight: normal; background: white; border: 1px solid rgba(11,31,68,.18);
+  border-radius: 999px; padding: 6px 10px; height: auto; margin: 0 4px; transition: .15s; font-size:14px; color:var(--ink);
+}
+.flatpickr-current-month select.flatpickr-monthDropdown-months {
+  -webkit-appearance:none; appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3 6L8 11L13 6' stroke='%230b1f44' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-position:right 8px center; background-repeat:no-repeat; padding-right:28px; min-width:120px;
+}
+.flatpickr-current-month .numInputWrapper { width:80px; }
+.flatpickr-current-month .numInputWrapper input.cur-year { font-size:14px; color:var(--ink); font-weight:normal; height:100%; padding-left:6px; }
+.flatpickr-current-month select.flatpickr-monthDropdown-months:hover,
+.flatpickr-current-month .numInputWrapper:hover{ background-color:rgba(31,111,235,.06); }
+.flatpickr-current-month .numInputWrapper span{ border:none; padding:0 4px; }
+.flatpickr-current-month .numInputWrapper span:hover{ background:rgba(31,111,235,.1); }
+.flatpickr-months .flatpickr-prev-month,
+.flatpickr-months .flatpickr-next-month{ padding:10px; fill:var(--navy); height:38px; }
+.flatpickr-months .flatpickr-prev-month:hover svg,
+.flatpickr-months .flatpickr-next-month:hover svg{ fill:var(--blue); }
+.flatpickr-day{ border-radius:8px; margin:2px; color:var(--ink); }
+.flatpickr-day.selected,.flatpickr-day.startRange,.flatpickr-day.endRange{ background:var(--blue); border-color:var(--blue); box-shadow:none; }
+.flatpickr-day:hover{ background:rgba(31,111,235,.1); border-color:transparent; }
+.flatpickr-weekdays{ margin-top:8px; }
+.flatpickr-days{ margin-top:8px; }
+.flatpickr-innerContainer{ padding-bottom:6px; }
+.flatpickr-months{ position:relative; z-index:2; background:#fff; border-bottom:1px solid rgba(11,31,68,.10); }
 </style>
 </head>
+
 <body>
-  <div class="wrap">
-    <div class="card">
-      <div class="header">
-        <div>
-          <div class="title" id="t"></div>
-          <div class="muted" id="sub"></div>
-        </div>
-        <div class="tabs" id="tabs">
-          <button class="tab active" data-k="close_price">Close</button>
-          <button class="tab" data-k="change_dollar">Δ $</button>
-          <button class="tab" data-k="change_pct">Δ %</button>
-          <button class="tab" data-k="trade_volume">Volume</button>
-        </div>
+  <div class="card">
+    <div class="panel-sub" id="asOf">As of —</div>
+
+    <div class="controls">
+      <span class="pillset" id="rangePills">
+        <button class="btn" data-range="1d">1D</button><button class="btn" data-range="1w">1W</button>
+        <button class="btn" data-range="1m">1M</button><button class="btn" data-range="3m">3M</button>
+        <button class="btn" data-range="6m">6M</button><button class="btn" data-range="ytd">YTD</button>
+        <button class="btn" data-range="1y">1Y</button><button class="btn" data-range="5y">5Y</button>
+        <button class="btn" data-range="10y">10Y</button><button class="btn active" data-range="20y">20Y</button>
+      </span>
+
+      <span class="label" style="margin-left:8px;">From</span>
+      <input id="from" class="input" type="text" placeholder="yyyy-mm-dd">
+      <span class="label">to</span>
+      <input id="to" class="input" type="text" placeholder="yyyy-mm-dd">
+      <button id="apply" class="btn">Apply</button>
+      <button id="reset" class="btn" title="Reset zoom & date range">Reset</button>
+
+      <span class="break"></span>
+
+      <span class="label">Display</span>
+      <span class="pillset" id="modePills">
+        <button class="btn active" data-mode="price">Price</button>
+        <button class="btn" data-mode="delta">$ Change</button>
+        <button class="btn" data-mode="pct">% Change</button>
+        <button class="btn" data-mode="volume">Volume</button>
+      </span>
+
+      <span class="break"></span>
+
+      <span class="label">MAs</span>
+      <label class="check"><input type="checkbox" class="ma" data-n="20">MA20</label>
+      <label class="check"><input type="checkbox" class="ma" data-n="50">MA50</label>
+      <label class="check"><input type="checkbox" class="ma" data-n="200">MA200</label>
+
+      <span class="break"></span>
+
+      <span class="label">Download</span>
+      <div class="pillset">
+        <button id="dlCsv" class="btn">CSV</button>
+        <button id="dlXlsx" class="btn">Excel</button>
+        <button id="dlPdf" class="btn">PDF</button>
       </div>
-      <canvas id="c"></canvas>
+    </div>
+
+    <div class="statbar">
+      <div class="metricCol">
+        <div class="metric"><div class="num" id="currPrimary">—</div><div class="tag" id="currPrimaryTag">Current price</div></div>
+        <div class="metric"><div class="chg" id="chg1d">—</div><div class="tag" id="chg1dTag">1D change</div></div>
+      </div>
+      <div class="metricCol right" id="rightStats">
+        <div class="metric"><div class="num">—</div><div class="tag">20Y start</div></div>
+        <div class="metric"><div class="chg" id="rangeChange">—</div><div class="tag">Change (20Y)</div></div>
+      </div>
+    </div>
+
+    <div class="chart-wrap" id="chartWrap">
+      <div class="plot"><canvas id="line"></canvas></div>
+      <div class="vol" id="volWrap"><canvas id="vol"></canvas></div>
+      <div id="empty" class="empty hidden">
+        <div>No data loaded.</div>
+        <div id="emptyHint" style="font-size:11px;"></div>
+      </div>
+    </div>
+
+    <div class="facts">
+      <div class="facts-grid">
+        <div class="kv"><div class="k">Previous Close</div><div class="rule"></div><div class="v" id="prevClose">—</div></div>
+        <div class="kv"><div class="k">Volume</div><div class="rule"></div><div class="v" id="latestVol">—</div></div>
+        <div class="kv"><div class="k">1Y Range</div><div class="rule"></div><div class="v" id="range1y">—</div></div>
+        <div class="kv"><div class="k">Avg. Volume (All-time)</div><div class="rule"></div><div class="v" id="avgVol">—</div></div>
+        <div class="kv"><div class="k">All-time High</div><div class="rule"></div><div class="v" id="ath">—</div></div>
+        <div class="kv"><div class="k">All-time Low</div><div class="rule"></div><div class="v" id="atl">—</div></div>
+      </div>
     </div>
   </div>
 
 <script>
-const qp = new URLSearchParams(location.search);
-const symbol = (qp.get("symbol") || "").toUpperCase();
-document.getElementById("t").textContent = symbol ? `${symbol} – Price & Activity` : "Missing symbol";
-let chart, rows = [];
+/* ---------- Config & State ---------- */
+const CONFIG = {
+  WORKER_BASE:'https://ttse-adaptor.technology-data.workers.dev',
+  LIMIT:200000,
+  BLUE:'#1f6feb',
+  MA_COLORS:{20:'#7c3aed',50:'#0ea5e9',200:'#16a34a'},
+  AUTO_REFRESH_MS:60*60*1000
+};
 
-// Same-origin JSON files live in /data/SYMBOL.json
-function dataUrl(sym){ return `data/${encodeURIComponent(sym)}.json`; }
+/* ---------- Symbol Context ---------- */
+// Detect symbol via ?symbol=PHL, #PHL, or Wix postMessage({symbol:"PHL"})
+let symbol = (() => {
+  const p = new URLSearchParams(location.search);
+  const s1 = p.get('symbol');
+  const s2 = (location.hash || '').replace('#','');
+  const s = (s1 || s2 || 'TTSE').toUpperCase();
+  document.title = `${s} • Market Series`;
+  return s;
+})();
+function setSymbol(next){
+  const s = String(next || 'TTSE').toUpperCase();
+  if (s !== symbol){
+    symbol = s;
+    document.title = `${s} • Market Series`;
+    fetchAll();
+  }
+}
+window.addEventListener('message', (ev) => {
+  const s = ev?.data?.symbol || ev?.data?.SYMBOL;
+  if (s) setSymbol(s);
+});
 
-async function load(metric="close_price"){
-  if(!symbol){ document.getElementById("sub").textContent = "No symbol"; return; }
-  try{
-    const res = await fetch(dataUrl(symbol), { cache: "no-cache" });
-    if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    rows = data.items || [];
-    render(metric);
-  }catch(e){
-    document.getElementById("sub").textContent = e.message || "Failed to load";
+let raw=[];
+let rangeSel='20y', modeSel='price';
+let customFrom=null, customTo=null;
+let activeMAs=new Set();
+let lineChart=null, volChart=null;
+let BOUNDS={minISO:null,maxISO:null};
+let fpFrom=null, fpTo=null;
+
+/* ---------- Helpers ---------- */
+const msDay=86400000;
+function pad2(n){return String(n).padStart(2,'0');}
+function parseDateAny(s){ if(!s)return new Date(NaN); const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(s)); if(m) return new Date(+m[1],+m[2]-1,+m[3]); const t=Date.parse(String(s)); if(!isNaN(t)){const d=new Date(t);return new Date(d.getFullYear(),d.getMonth(),d.getDate());} return new Date(NaN);}
+function isoFromDate(d){return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;}
+function fmtNum(n){return Number(n).toLocaleString(undefined,{maximumFractionDigits:2});}
+function fmtDollar(n){return `$${fmtNum(n)}`;}
+function fmtTT(n){return `TT $${fmtNum(n)}`;}
+function fmtPct(n){return `${Number(n).toFixed(2)}%`; }
+function fmtVol(v){return v==null?'—':Number(v).toLocaleString();}
+function fmtDate(iso){ const d=parseDateAny(iso); if(isNaN(+d)) return iso||'—'; return `${pad2(d.getDate())}-${d.toLocaleString('en-US',{month:'short'})}-${d.getFullYear()}`;}
+function percentile(arr,p){ if(!arr.length) return 0; const s=[...arr].sort((a,b)=>a-b); const idx=Math.min(s.length-1,Math.max(0,Math.floor((p/100)*s.length))); return s[idx];}
+function spanDays(data){ if(!data.length) return 0; const f=parseDateAny(data[0].d), l=parseDateAny(data.at(-1).d); return Math.max(1,Math.round((l-f)/msDay));}
+function xLabel(iso,span){ if(span>365*5)return String(parseDateAny(iso).getFullYear()); if(span>30) return parseDateAny(iso).toLocaleDateString('en-US',{month:'short',year:'numeric'}); return fmtDate(iso); }
+
+/* ---------- Flatpickr Init ---------- */
+function initCalendars() {
+  const minY = BOUNDS.minISO ? parseDateAny(BOUNDS.minISO).getFullYear() : 1990;
+  const maxY = BOUNDS.maxISO ? parseDateAny(BOUNDS.maxISO).getFullYear() : new Date().getFullYear();
+  if (fpFrom) fpFrom.destroy();
+  if (fpTo) fpTo.destroy();
+  const baseOpts = {
+    dateFormat: "Y-m-d",
+    allowInput: true,
+    disableMobile: true,
+    minDate: BOUNDS.minISO || null,
+    maxDate: BOUNDS.maxISO || null,
+    showMonths: 1,
+    static: true,
+    clickOpens: true,
+    closeOnSelect: true
+  };
+  fpFrom = flatpickr('#from', baseOpts);
+  fpTo = flatpickr('#to', baseOpts);
+  setTimeout(() => { fpFrom?.redraw(); fpTo?.redraw(); }, 10);
+}
+
+/* ---------- Data Fetch ---------- */
+async function fetchAll(){
+  raw = [];
+  // For TTSE use index endpoint; otherwise use stock-series
+  const variants = (symbol === 'TTSE')
+    ? [['/index-series', {limit: CONFIG.LIMIT}],
+       ['/index_series', {limit: CONFIG.LIMIT}]]
+    : [['/stock-series', {symbol, limit: CONFIG.LIMIT}],
+       ['/stock_series', {symbol, limit: CONFIG.LIMIT}]]; // optional underscore alias
+
+  for(const [path,params] of variants){
+    const u = new URL(CONFIG.WORKER_BASE.replace(/\/$/,'') + path);
+    Object.entries(params).forEach(([k,v]) => u.searchParams.set(k, v));
+    const url = u.toString();
+    try{
+      const res = await fetch(url, {mode: 'cors'});
+      if(!res.ok) continue;
+      let json;
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('json')) json = await res.json();
+      else {
+        const t = await res.text();
+        try { json = JSON.parse(t); } catch { continue; }
+      }
+      const norm = normalize(json);
+      if (norm.length) { raw = norm; break; }
+    }catch(e){
+      console.error('Fetch error for ' + url + ': ' + e.message);
+    }
+  }
+
+  if (raw.length) {
+    BOUNDS.minISO = raw[0].d; BOUNDS.maxISO = raw.at(-1).d;
+    document.getElementById('empty').classList.add('hidden');
+  } else {
+    BOUNDS.minISO = BOUNDS.maxISO = null;
+    document.getElementById('empty').classList.remove('hidden');
+    document.getElementById('emptyHint').textContent =
+      `No rows returned for ${symbol}. Check endpoint /${symbol==='TTSE'?'index-series':'stock-series'}.`;
+  }
+  initCalendars();
+  customFrom = customTo = null;
+  render();
+}
+
+function normalize(payload) {
+  if (!payload) return [];
+  let arr = Array.isArray(payload) ? payload : Object.values(payload).find(v => Array.isArray(v) && v.length && typeof v[0] === 'object') || [];
+  ['data', 'items', 'series', 'rows', 'result'].forEach(k => { if (Array.isArray(payload[k])) arr = payload[k]; });
+  const out = arr.map(r => {
+    if (!r) return null;
+    const dRaw = r.d ?? r.date ?? r.trade_date ?? r.ts ?? r.timestamp;
+    const vRaw = r.v ?? r.value ?? r.close ?? r.price ?? r.index ?? r.index_value ?? r.close_price;
+    const volRaw = r.volume ?? r.tv ?? r.trade_volume ?? r.vol;
+    const d = parseDateAny(dRaw);
+    if (!dRaw || isNaN(+d) || vRaw == null) return null;
+    return {d: isoFromDate(d), v: Number(vRaw), tv: volRaw != null ? Number(volRaw) : null};
+  }).filter(Boolean);
+  out.sort((a, b) => a.d.localeCompare(b.d));
+  const dedup = []; let last = '';
+  for (const o of out) {
+    if (o.d === last) dedup[dedup.length - 1] = o;
+    else dedup.push(o);
+    last = o.d;
+  }
+  return dedup;
+}
+
+/* ---------- Range Logic ---------- */
+function byRange(data) {
+  if (rangeSel === 'custom' && customFrom && customTo) {
+    const f = parseDateAny(customFrom), t = parseDateAny(customTo);
+    return data.filter(p => parseDateAny(p.d) >= f && parseDateAny(p.d) <= t);
+  }
+  if (!data.length) return [];
+  const last = parseDateAny(data.at(-1).d);
+  if (rangeSel === 'ytd') return data.filter(p => parseDateAny(p.d) >= new Date(last.getFullYear(), 0, 1));
+  const spans = { '1d': 1, '1w': 7, '1m': 30, '3m': 90, '6m': 182, '1y': 365, '5y': 1826, '10y': 3652, '20y': 7305 };
+  const days = spans[rangeSel];
+  if (!days) return data;
+  const cutoff = new Date(+last - days * msDay);
+  let slice = data.filter(p => parseDateAny(p.d) >= cutoff);
+  if (rangeSel === '1d' && slice.length < 2 && data.length >= 2) slice = data.slice(-2);
+  return slice;
+}
+
+/* ---------- Stats & Facts ---------- */
+function updateStats(ranged) {
+  if (!raw.length) return;
+  const last = raw.at(-1), prev = raw.at(-2) || last;
+  const isVol = modeSel === 'volume';
+  document.getElementById('currPrimary').textContent = isVol ? fmtVol(last.tv) : fmtTT(last.v);
+  document.getElementById('currPrimaryTag').textContent = isVol ? 'Current volume' : `Current price (${symbol})`;
+  const lastVal = isVol ? last.tv : last.v;
+  const prevVal = isVol ? (prev.tv ?? last.tv) : prev.v;
+  if (lastVal != null && prevVal != null) {
+    const d = lastVal - prevVal;
+    const pct = prevVal ? (d / prevVal) * 100 : 0;
+    const el = document.getElementById('chg1d');
+    el.innerHTML = `${d >= 0 ? '+' : ''}${isVol ? fmtVol(Math.abs(d)) : fmtDollar(Math.abs(d))} &nbsp; ${d >= 0 ? '+' : ''}${fmtPct(pct)}`;
+    el.classList.toggle('up', d >= 0); el.classList.toggle('down', d < 0);
+  }
+  if (!ranged.length) return;
+  const first = ranged[0], end = ranged.at(-1);
+  const tag = (rangeSel === 'ytd') ? 'YTD' : rangeSel.toUpperCase();
+  let rightHTML = rangeSel === 'custom' ? 
+    `<div class="metric"><div class="num">${isVol ? fmtVol(first.tv) : fmtTT(first.v)}</div><div class="tag">Start (${fmtDate(first.d)})</div></div>
+     <div class="metric"><div class="num">${isVol ? fmtVol(end.tv) : fmtTT(end.v)}</div><div class="tag">End (${fmtDate(end.d)})</div></div>
+     <div class="metric"><div class="chg" id="rangeChange">—</div><div class="tag">Change (Custom)</div></div>` :
+    `<div class="metric"><div class="num">${isVol ? fmtVol(first.tv) : fmtTT(first.v)}</div><div class="tag">${tag} start</div></div>
+     <div class="metric"><div class="chg" id="rangeChange">—</div><div class="tag">Change (${tag})</div></div>`;
+  document.getElementById('rightStats').innerHTML = rightHTML;
+  const startVal = isVol ? first.tv : first.v, endVal = isVol ? end.tv : end.v;
+  if (startVal != null && endVal != null) {
+    const d = endVal - startVal;
+    const pct = startVal ? (d / startVal) * 100 : 0;
+    const rc = document.getElementById('rangeChange');
+    if (rc) {
+      rc.innerHTML = `${d >= 0 ? '+' : ''}${isVol ? fmtVol(Math.abs(d)) : fmtDollar(Math.abs(d))} &nbsp; ${d >= 0 ? '+' : ''}${fmtPct(pct)}`;
+      rc.classList.toggle('up', d >= 0); rc.classList.toggle('down', d < 0);
+    }
+  }
+  document.getElementById('asOf').textContent = `As of ${fmtDate(end.d)} • ${symbol}`;
+}
+
+function updateFacts() {
+  if (!raw.length) return;
+  const last = raw.at(-1), prev = raw.at(-2) || last;
+  document.getElementById('prevClose').textContent = fmtTT(prev.v);
+  document.getElementById('latestVol').textContent = last.tv != null ? fmtVol(last.tv) : '—';
+  const cut = new Date(parseDateAny(last.d) - 365 * msDay);
+  const lastYear = raw.filter(r => parseDateAny(r.d) >= cut);
+  document.getElementById('range1y').textContent = lastYear.length ? `${fmtTT(Math.min(...lastYear.map(r => r.v)))} – ${fmtTT(Math.max(...lastYear.map(r => r.v)))}` : '—';
+  const vols = raw.map(r => r.tv).filter(v => v != null);
+  document.getElementById('avgVol').textContent = vols.length ? Math.round(vols.reduce((a, b) => a + b, 0) / vols.length).toLocaleString() : '—';
+  document.getElementById('ath').textContent = fmtTT(Math.max(...raw.map(r => r.v)));
+  document.getElementById('atl').textContent = fmtTT(Math.min(...raw.map(r => r.v)));
+}
+
+/* ---------- Chart Build ---------- */
+function buildCharts(ranged) {
+  lineChart?.destroy(); volChart?.destroy();
+  lineChart = volChart = null;
+
+  const labels = ranged.map(r => r.d);
+  const span = spanDays(ranged);
+  let mainData = modeSel === 'volume' ? ranged.map(r => Math.min(r.tv ?? 0, percentile(ranged.map(r => r.tv ?? 0), 99))) :
+    modeSel === 'price' ? ranged.map(r => r.v) :
+    ranged.map((r, i) => i === 0 ? 0 : modeSel === 'delta' ? r.v - ranged[i-1].v : ((r.v - ranged[i-1].v) / ranged[i-1].v) * 100);
+
+  const datasets = [{
+    label: modeSel === 'price' ? 'Price' : modeSel === 'delta' ? '$ Change' : modeSel === 'pct' ? '% Change' : 'Volume',
+    data: mainData,
+    type: modeSel === 'volume' ? 'bar' : 'line',
+    borderColor: CONFIG.BLUE,
+    backgroundColor: modeSel === 'volume' ? 'rgba(31,111,235,.30)' : 'rgba(31,111,235,.12)',
+    fill: modeSel !== 'volume',
+    tension: ranged.length >= 2 ? .25 : 0,
+    borderWidth: modeSel === 'volume' ? 0 : 2,
+    pointRadius: ranged.length >= 2 ? 0 : 3
+  }];
+
+  if (modeSel === 'price' && activeMAs.size) {
+    [...activeMAs].sort((a, b) => a - b).forEach(n => {
+      let buf = [], sum = 0;
+      const ma = ranged.map(p => { buf.push(p.v); sum += p.v; if (buf.length > n) sum -= buf.shift(); return buf.length === n ? sum / n : null; });
+      datasets.push({
+        label: `MA${n}`,
+        data: ma,
+        type: 'line',
+        borderColor: CONFIG.MA_COLORS[n] || '#777',
+        borderWidth: 1.25,
+        pointRadius: 0,
+        tension: .25,
+        spanGaps: true
+      });
+    });
+  }
+
+  const tooltipConfig = {
+    mode: 'index',
+    intersect: false,
+    callbacks: {
+      title: items => fmtDate(labels[items[0].dataIndex] || ''),
+      label: ctx => {
+        const i = ctx.dataIndex, row = ranged[i];
+        if (!row) return '';
+        if (ctx.dataset.label.startsWith('MA')) return `${ctx.dataset.label}: ${fmtNum(ctx.parsed.y)}`;
+        if (modeSel === 'price') return `Price: ${fmtTT(row.v)}${row.tv != null ? ` • Vol ${fmtVol(row.tv)}` : ''}`;
+        if (modeSel === 'volume') return `Volume: ${fmtVol(row.tv)}`;
+        if (i === 0) return modeSel === 'delta' ? '$ Change: 0' : '% Change: 0.00%';
+        const delta = row.v - ranged[i-1].v, pct = (delta / ranged[i-1].v) * 100;
+        return modeSel === 'delta' ? `$ Change: ${delta >= 0 ? '+' : ''}${fmtDollar(Math.abs(delta))}` : `% Change: ${delta >= 0 ? '+' : ''}${fmtPct(pct)}`;
+      }
+    }
+  };
+
+  lineChart = new Chart(document.getElementById('line'), {
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 450, easing: 'easeOutCubic' },
+      transitions: { resize: { animation: { duration: 0 } } },
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { labels: { usePointStyle: true, pointStyle: 'circle' } }, tooltip: tooltipConfig },
+      scales: {
+        x: { grid: { display: false }, ticks: { autoSkip: true, maxTicksLimit: span > 365*5 ? 8 : span > 30 ? 12 : 8, callback: (v, i) => xLabel(labels[i], span) } },
+        y: { grid: { display: false } }
+      },
+      onHover: (evt, elements) => {
+        const idx = elements?.length ? elements[0].index : null;
+        if (volChart && idx != null) {
+          volChart.setActiveElements([{ datasetIndex: 0, index: idx }]);
+          volChart.tooltip.setActiveElements([{ datasetIndex: 0, index: idx }], { x: volChart.scales.x.getPixelForValue(idx), y: (volChart.chartArea?.top || 0) + 10 });
+          volChart.update('none');
+        } else if (volChart) {
+          volChart.setActiveElements([]);
+          volChart.update('none');
+        }
+      }
+    }
+  });
+
+  const showVol = modeSel !== 'volume' && ranged.length > 1;
+  document.getElementById('volWrap').style.display = showVol ? 'block' : 'none';
+  if (showVol) {
+    const vols = ranged.map(r => r.tv ?? 0);
+    const cap = vols.some(v => v > 0) ? percentile(vols, 99) : 0;
+    volChart = new Chart(document.getElementById('vol'), {
+      type: 'bar',
+      data: { labels, datasets: [{ label: 'Volume', data: cap ? vols.map(v => Math.min(v, cap)) : vols, backgroundColor: 'rgba(31,111,235,.30)', borderWidth: 0 }] },
+      options: {
+        animation: { duration: 450, easing: 'easeOutCubic' },
+        transitions: { resize: { animation: { duration: 0 } } },
+        interaction: { mode: 'index', intersect: false },
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: tooltipConfig },
+        scales: { x: { display: false }, y: { display: false } },
+        layout: { padding: () => ({ left: lineChart.chartArea.left, right: lineChart.width - lineChart.chartArea.right }) },
+        onHover: (evt, elements) => {
+          const idx = elements?.length ? elements[0].index : null;
+          if (lineChart && idx != null) {
+            lineChart.setActiveElements([{ datasetIndex: 0, index: idx }]);
+            lineChart.tooltip.setActiveElements([{ datasetIndex: 0, index: idx }], { x: lineChart.scales.x.getPixelForValue(idx), y: (lineChart.chartArea?.top || 0) + 10 });
+            lineChart.update('none');
+          } else if (lineChart) {
+            lineChart.setActiveElements([]);
+            lineChart.update('none');
+          }
+        }
+      }
+    });
   }
 }
 
-function series(metric){
-  const xs = rows.map(r => r.d);
-  const ys = rows.map(r => (r[metric] ?? null));
-  return { xs, ys };
+/* ---------- Render ---------- */
+function render() {
+  if (!raw.length) return document.getElementById('empty').classList.remove('hidden');
+  document.getElementById('empty').classList.add('hidden');
+  const ranged = byRange(raw);
+  updateStats(ranged);
+  updateFacts();
+  buildCharts(ranged);
 }
 
-function render(metric){
-  const { xs, ys } = series(metric);
-  const ctx = document.getElementById("c").getContext("2d");
-  if(chart) chart.destroy();
-  chart = new Chart(ctx, {
-    type: metric === "trade_volume" ? "bar" : "line",
-    data: { labels: xs, datasets: [{ data: ys, borderWidth: 2, tension: 0.2 }] },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display:false }, tooltip: { mode:"index", intersect:false } },
-      scales: { x: { ticks: { maxTicksLimit: 8 } }, y: { beginAtZero: metric !== "close_price" } }
-    }
-  });
-  document.getElementById("sub").textContent = `Data points: ${rows.length}`;
-}
+/* ---------- Downloads ---------- */
+function currentRows() { return byRange(raw).map(r => ({date: r.d, value: r.v, volume: r.tv ?? ''})); }
 
-document.getElementById("tabs").addEventListener("click", (e)=>{
-  const btn = e.target.closest("
+document.getElementById('dlCsv').addEventListener('click', () => {
+  const rows = currentRows();
+  const csv = ['date,value,volume', ...rows.map(r => `${r.date},${r.value},${r.volume}`)].join('\n');
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `series_${symbol}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+document.getElementById('dlXlsx').addEventListener('click', () => {
+  const ws = XLSX.utils.json_to_sheet(currentRows());
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Series');
+  XLSX.writeFile(wb, `series_${symbol}.xlsx`);
+});
+
+document.getElementById('dlPdf').addEventListener('click', () => {
+  const {jsPDF} = window.jspdf;
+  const doc = new jsPDF({unit: 'pt', format: 'a4'});
+  doc.setFontSize(14);
+  doc.text(`${symbol} Chart`, 40, 40);
+  if (lineChart) {
+    const img = lineChart.toBase64Image();
+    const pw = doc.internal.pageSize.getWidth();
+    const w = pw - 80, h = w * 0.45;
+    doc.addImage(img, 'PNG', 40, 60, w, h);
+    doc.setFontSize(10);
+    doc.text('First 30 rows (current range)', 40, 60 + h + 20);
+    const rows = currentRows().slice(0, 30);
+    let y = 60 + h + 36;
+    rows.forEach(r => { doc.text(`${r.date} ${r.value} ${r.volume}`, 40, y); y += 12; });
+  }
+  doc.save(`series_${symbol}.pdf`);
+});
+
+/* ---------- UI Events ---------- */
+document.querySelectorAll('#rangePills .btn').forEach(b => b.addEventListener('click', () => {
+  rangeSel = b.dataset.range;
+  document.querySelectorAll('#rangePills .btn').forEach(x => x.classList.toggle('active', x === b));
+  if (rangeSel !== 'custom') { customFrom = customTo = null; fpFrom?.clear(); fpTo?.clear(); }
+  render();
+}));
+document.querySelectorAll('#modePills .btn').forEach(b => b.addEventListener('click', () => {
+  modeSel = b.dataset.mode;
+  document.querySelectorAll('#modePills .btn').forEach(x => x.classList.toggle('active', x === b));
+  render();
+}));
+document.querySelectorAll('.ma').forEach(ch => ch.addEventListener('change', e => {
+  const n = +e.target.dataset.n;
+  e.target.checked ? activeMAs.add(n) : activeMAs.delete(n);
+  render();
+}));
+document.getElementById('apply').addEventListener('click', () => {
+  const f = fpFrom?.selectedDates?.[0], t = fpTo?.selectedDates?.[0];
+  if (!f || !t) return document.getElementById('from').focus();
+  let fISO = isoFromDate(f), tISO = isoFromDate(t);
+  if (fISO > tISO) [fISO, tISO] = [tISO, fISO];
+  customFrom = fISO; customTo = tISO; rangeSel = 'custom';
+  document.querySelectorAll('#rangePills .btn').forEach(b => b.classList.remove('active'));
+  render();
+});
+document.getElementById('reset').addEventListener('click', () => {
+  customFrom = customTo = null; rangeSel = '20y';
+  document.querySelectorAll('#rangePills .btn').forEach(b => b.classList.toggle('active', b.dataset.range === '20y'));
+  fpFrom?.clear(); fpTo?.clear();
+  render();
+});
+
+/* ---------- Boot ---------- */
+fetchAll();
+setInterval(fetchAll, CONFIG.AUTO_REFRESH_MS);
+
+/* ---------- Resize ---------- */
+new ResizeObserver(render).observe(document.getElementById('chartWrap'));
+window.addEventListener('resize', render);
+</script>
+</body>
+</html>

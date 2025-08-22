@@ -43,7 +43,7 @@ html,body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI"
 .metric .num,.metric .chg{font-size:16px;white-space:nowrap;line-height:1.2;}
 .metric .tag{font-size:11px;color:var(--muted);}
 .up{color:var(--up);} .down{color:var(--dn);}
-.chart-wrap{position:relative;border:1px solid var(--border);border-radius:var(--r-surface);background:#fff;}
+.chart-wrap{position:relative;border:1px solid var(--border);border-radius:var(--r-surface);background:#fff;overflow:hidden;}
 .plot{height:360px;}
 .vol{height:80px;border-top:1px solid var(--border);}
 .empty{position:absolute;inset:0;display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;font-size:13px;color:var(--muted);background:repeating-linear-gradient(45deg,rgba(0,0,0,0.02),rgba(0,0,0,0.02) 8px,rgba(0,0,0,0.04) 8px,rgba(0,0,0,0.04) 16px);text-align:center;padding:0 14px;z-index:3;pointer-events:none;}
@@ -98,6 +98,16 @@ canvas{background-color:transparent !important}
 .flatpickr-days{ margin-top:8px; }
 .flatpickr-innerContainer{ padding-bottom:6px; }
 .flatpickr-months{ position:relative; z-index:2; background:#fff; border-bottom:1px solid rgba(11,31,68,.10); }
+
+/* Fix for chart clipping */
+.chart-container {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-surface);
+}
+.chart-container canvas {
+  display: block;
+}
 </style>
 </head>
 
@@ -408,34 +418,17 @@ function buildCharts(ranged) {
     modeSel === 'price' ? ranged.map(r => r.v) :
     ranged.map((r, i) => i === 0 ? 0 : modeSel === 'delta' ? r.v - ranged[i-1].v : ((r.v - ranged[i-1].v) / ranged[i-1].v) * 100);
 
-  // Plugin to ensure proper background clipping
-  const chartAreaBorder = {
-    id: 'chartAreaBorder',
-    beforeDraw(chart, args, options) {
-      const {ctx, chartArea} = chart;
-      if (chartArea) {
-        ctx.save();
-        // This ensures any filled area is clipped to the chart area
-        ctx.beginPath();
-        ctx.rect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
-        ctx.clip();
-      }
-    },
-    afterDraw(chart) {
-      chart.ctx.restore();
-    }
-  };
-
   const datasets = [{
     label: modeSel === 'price' ? 'Price' : modeSel === 'delta' ? '$ Change' : modeSel === 'pct' ? '% Change' : 'Volume',
     data: mainData,
     type: modeSel === 'volume' ? 'bar' : 'line',
     borderColor: CONFIG.BLUE,
     backgroundColor: modeSel === 'volume' ? 'rgba(31,111,235,.30)' : 'rgba(31,111,235,.12)',
-    fill: modeSel !== 'volume' ? 'origin' : false, // Use 'origin' instead of boolean to ensure proper filling
+    fill: modeSel !== 'volume',
     tension: ranged.length >= 2 ? .25 : 0,
     borderWidth: modeSel === 'volume' ? 0 : 2,
-    pointRadius: ranged.length >= 2 ? 0 : 3
+    pointRadius: ranged.length >= 2 ? 0 : 3,
+    clip: true // Ensure chart elements are clipped to the chart area
   }];
 
   if (modeSel === 'price' && activeMAs.size) {
@@ -451,7 +444,7 @@ function buildCharts(ranged) {
         pointRadius: 0,
         tension: .25,
         spanGaps: true,
-        fill: false // Ensure MAs don't have any fill
+        clip: true // Ensure chart elements are clipped to the chart area
       });
     });
   }
@@ -484,16 +477,16 @@ function buildCharts(ranged) {
       interaction: { mode: 'index', intersect: false },
       plugins: { 
         legend: { labels: { usePointStyle: true, pointStyle: 'circle' } }, 
-        tooltip: tooltipConfig
+        tooltip: tooltipConfig 
       },
       scales: {
         x: { 
           grid: { display: false }, 
-          ticks: { autoSkip: true, maxTicksLimit: span > 365*5 ? 8 : span > 30 ? 12 : 8, callback: (v, i) => xLabel(labels[i], span) }
+          ticks: { autoSkip: true, maxTicksLimit: span > 365*5 ? 8 : span > 30 ? 12 : 8, callback: (v, i) => xLabel(labels[i], span) } 
         },
         y: { 
           grid: { display: false },
-          beginAtZero: modeSel === 'volume' ? true : false // Start at zero for volume mode
+          beginAtZero: modeSel === 'volume' // Start at zero for volume charts
         }
       },
       onHover: (evt, elements) => {
@@ -506,9 +499,14 @@ function buildCharts(ranged) {
           volChart.setActiveElements([]);
           volChart.update('none');
         }
+      },
+      // Ensure the chart area has a transparent background
+      elements: {
+        point: {
+          backgroundColor: 'transparent'
+        }
       }
-    },
-    plugins: [chartAreaBorder]
+    }
   });
 
   const showVol = modeSel !== 'volume' && ranged.length > 1;
@@ -524,7 +522,8 @@ function buildCharts(ranged) {
           label: 'Volume', 
           data: cap ? vols.map(v => Math.min(v, cap)) : vols, 
           backgroundColor: 'rgba(31,111,235,.30)', 
-          borderWidth: 0 
+          borderWidth: 0,
+          clip: true // Ensure chart elements are clipped to the chart area
         }] 
       },
       options: {
@@ -535,9 +534,17 @@ function buildCharts(ranged) {
         plugins: { legend: { display: false }, tooltip: tooltipConfig },
         scales: { 
           x: { display: false }, 
-          y: { display: false, beginAtZero: true } 
+          y: { 
+            display: false,
+            beginAtZero: true // Start at zero for volume charts
+          } 
         },
-        layout: { padding: () => ({ left: lineChart.chartArea.left, right: lineChart.width - lineChart.chartArea.right }) },
+        layout: { 
+          padding: () => ({ 
+            left: lineChart.chartArea.left, 
+            right: lineChart.width - lineChart.chartArea.right 
+          }) 
+        },
         onHover: (evt, elements) => {
           const idx = elements?.length ? elements[0].index : null;
           if (lineChart && idx != null) {
@@ -549,8 +556,7 @@ function buildCharts(ranged) {
             lineChart.update('none');
           }
         }
-      },
-      plugins: [chartAreaBorder]
+      }
     });
   }
 }

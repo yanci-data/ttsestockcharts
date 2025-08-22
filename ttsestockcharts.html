@@ -409,16 +409,16 @@ function buildCharts(ranged) {
     ranged.map((r, i) => i === 0 ? 0 : modeSel === 'delta' ? r.v - ranged[i-1].v : ((r.v - ranged[i-1].v) / ranged[i-1].v) * 100);
 
   const datasets = [{
-    label: modeSel === 'price' ? 'Price' : modeSel === 'delta' ? '$ Change' : modeSel === 'pct' ? '% Change' : 'Volume',
-    data: mainData,
-    type: modeSel === 'volume' ? 'bar' : 'line',
-    borderColor: CONFIG.BLUE,
-    backgroundColor: 'transparent',
-    fill: false,
-    tension: ranged.length >= 2 ? .25 : 0,
-    borderWidth: modeSel === 'volume' ? 0 : 2,
-    pointRadius: ranged.length >= 2 ? 0 : 3
-  }];
+  label: modeSel === 'price' ? 'Price' : modeSel === 'delta' ? '$ Change' : modeSel === 'pct' ? '% Change' : 'Volume',
+  data: mainData,
+  type: modeSel === 'volume' ? 'bar' : 'line',
+  borderColor: CONFIG.BLUE,
+  backgroundColor: 'transparent',   // was rgba(...)
+  fill: false,                       // was modeSel !== 'volume'
+  tension: ranged.length >= 2 ? .25 : 0,
+  borderWidth: modeSel === 'volume' ? 0 : 2,
+  pointRadius: ranged.length >= 2 ? 0 : 3
+}];
 
   if (modeSel === 'price' && activeMAs.size) {
     [...activeMAs].sort((a, b) => a - b).forEach(n => {

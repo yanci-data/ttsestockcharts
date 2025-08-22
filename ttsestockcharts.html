@@ -489,7 +489,8 @@ function buildCharts(ranged) {
     const cap = vols.some(v => v > 0) ? percentile(vols, 99) : 0;
     volChart = new Chart(document.getElementById('vol'), {
       type: 'bar',
-      data: { labels, datasets: [{ label: 'Volume', data: cap ? vols.map(v => Math.min(v, cap)) : vols, backgroundColor: 'rgba(31,111,235,.30)', borderWidth: 0 }] },
+      data: {labels, datasets: [{label: 'Volume',data: cap ? vols.map(v => Math.min(v, cap)) : vols, backgroundColor: 'transparent', // was rgba(31,111,235,.30)borderWidth: 0}]}
+
       options: {
         animation: { duration: 450, easing: 'easeOutCubic' },
         transitions: { resize: { animation: { duration: 0 } } },

@@ -23,7 +23,7 @@
   --r-card:18px; --r-surface:16px; --r-pill:999px;
   --focus-ring:0 0 0 2px rgba(31,111,235,.18);
 }
-html,body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:var(--ink);background:#f7f9fc;}
+html,body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:var(--ink);background:transparent;}
 .card{background:var(--card);border:1px solid var(--border);border-radius:var(--r-card);padding:16px;max-width:1280px;margin:16px auto;}
 .panel-sub{font-size:12px;color:var(--muted);margin-bottom:10px;}
 .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;}
@@ -60,7 +60,11 @@ html,body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI"
   .facts-grid{grid-template-columns:1fr;}
 }
 /* Make every canvas truly transparent (prevents faint blue) */
-canvas{background-color:transparent !important}
+canvas{background-color:transparent !important;}
+/* Force canvas parent containers to also be transparent */
+.chart-wrap canvas, #line, #vol {background-color:transparent !important;}
+.plot, .vol {background-color:transparent !important;}
+#chartWrap {background-color:transparent !important;}
 
 /* Date Picker Custom Styling */
 .flatpickr-calendar {
@@ -409,16 +413,16 @@ function buildCharts(ranged) {
     ranged.map((r, i) => i === 0 ? 0 : modeSel === 'delta' ? r.v - ranged[i-1].v : ((r.v - ranged[i-1].v) / ranged[i-1].v) * 100);
 
   const datasets = [{
-  label: modeSel === 'price' ? 'Price' : modeSel === 'delta' ? '$ Change' : modeSel === 'pct' ? '% Change' : 'Volume',
-  data: mainData,
-  type: modeSel === 'volume' ? 'bar' : 'line',
-  borderColor: CONFIG.BLUE,
-  backgroundColor: 'transparent',   // was rgba(...)
-  fill: false,                       // was modeSel !== 'volume'
-  tension: ranged.length >= 2 ? .25 : 0,
-  borderWidth: modeSel === 'volume' ? 0 : 2,
-  pointRadius: ranged.length >= 2 ? 0 : 3
-}];
+    label: modeSel === 'price' ? 'Price' : modeSel === 'delta' ? '$ Change' : modeSel === 'pct' ? '% Change' : 'Volume',
+    data: mainData,
+    type: modeSel === 'volume' ? 'bar' : 'line',
+    borderColor: CONFIG.BLUE,
+    backgroundColor: 'transparent',
+    fill: false,
+    tension: ranged.length >= 2 ? .25 : 0,
+    borderWidth: modeSel === 'volume' ? 0 : 2,
+    pointRadius: ranged.length >= 2 ? 0 : 3
+  }];
 
   if (modeSel === 'price' && activeMAs.size) {
     [...activeMAs].sort((a, b) => a - b).forEach(n => {
@@ -463,7 +467,12 @@ function buildCharts(ranged) {
       animation: { duration: 450, easing: 'easeOutCubic' },
       transitions: { resize: { animation: { duration: 0 } } },
       interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { labels: { usePointStyle: true, pointStyle: 'circle' } }, tooltip: tooltipConfig },
+      plugins: {
+        legend: { labels: { usePointStyle: true, pointStyle: 'circle' } },
+        tooltip: tooltipConfig,
+        // Force chart background to be transparent
+        filler: { propagate: false }
+      },
       scales: {
         x: { grid: { display: false }, ticks: { autoSkip: true, maxTicksLimit: span > 365*5 ? 8 : span > 30 ? 12 : 8, callback: (v, i) => xLabel(labels[i], span) } },
         y: { grid: { display: false } }
@@ -489,14 +498,26 @@ function buildCharts(ranged) {
     const cap = vols.some(v => v > 0) ? percentile(vols, 99) : 0;
     volChart = new Chart(document.getElementById('vol'), {
       type: 'bar',
-      data: {labels, datasets: [{label: 'Volume',data: cap ? vols.map(v => Math.min(v, cap)) : vols, backgroundColor: 'transparent', // was rgba(31,111,235,.30)borderWidth: 0}]}
-
+      data: {
+        labels, 
+        datasets: [{
+          label: 'Volume',
+          data: cap ? vols.map(v => Math.min(v, cap)) : vols, 
+          backgroundColor: 'transparent', 
+          borderWidth: 0
+        }]
+      },
       options: {
         animation: { duration: 450, easing: 'easeOutCubic' },
         transitions: { resize: { animation: { duration: 0 } } },
         interaction: { mode: 'index', intersect: false },
         maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: tooltipConfig },
+        plugins: {
+          legend: { display: false },
+          tooltip: tooltipConfig,
+          // Force chart background to be transparent
+          filler: { propagate: false }
+        },
         scales: { x: { display: false }, y: { display: false } },
         layout: { padding: () => ({ left: lineChart.chartArea.left, right: lineChart.width - lineChart.chartArea.right }) },
         onHover: (evt, elements) => {

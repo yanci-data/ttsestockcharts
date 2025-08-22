@@ -23,8 +23,8 @@
   --r-card:18px; --r-surface:16px; --r-pill:999px;
   --focus-ring:0 0 0 2px rgba(31,111,235,.18);
 }
-html,body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:var(--ink);background:#f7f9fc;}
-.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r-card);padding:16px;max-width:1280px;margin:16px auto;}
+html,body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:var(--ink);background:transparent;}
+.card{background:transparent;border:none;border-radius:var(--r-card);padding:16px;max-width:1280px;margin:16px auto;}
 .panel-sub{font-size:12px;color:var(--muted);margin-bottom:10px;}
 .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;}
 .pillset{display:flex;flex-wrap:wrap;gap:6px;}
@@ -43,7 +43,7 @@ html,body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI"
 .metric .num,.metric .chg{font-size:16px;white-space:nowrap;line-height:1.2;}
 .metric .tag{font-size:11px;color:var(--muted);}
 .up{color:var(--up);} .down{color:var(--dn);}
-.chart-wrap{position:relative;border:1px solid var(--border);border-radius:var(--r-surface);background:#fff;overflow:hidden;}
+.chart-wrap{position:relative;border:1px solid var(--border);border-radius:var(--r-surface);background:#fff;}
 .plot{height:360px;}
 .vol{height:80px;border-top:1px solid var(--border);}
 .empty{position:absolute;inset:0;display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;font-size:13px;color:var(--muted);background:repeating-linear-gradient(45deg,rgba(0,0,0,0.02),rgba(0,0,0,0.02) 8px,rgba(0,0,0,0.04) 8px,rgba(0,0,0,0.04) 16px);text-align:center;padding:0 14px;z-index:3;pointer-events:none;}
@@ -107,6 +107,16 @@ canvas{background-color:transparent !important}
 }
 .chart-container canvas {
   display: block;
+}
+
+/* Transparent background for embedding */
+body.embedded {
+  background: transparent !important;
+}
+body.embedded .card {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 </style>
 </head>
@@ -210,6 +220,12 @@ let symbol = (() => {
   document.title = `${s} • Market Series`;
   return s;
 })();
+
+// Check if page is embedded
+if (window !== window.top || window.location.search.includes('embedded=true')) {
+  document.body.classList.add('embedded');
+}
+
 function setSymbol(next){
   const s = String(next || 'TTSE').toUpperCase();
   if (s !== symbol){
@@ -293,7 +309,7 @@ async function fetchAll(){
         try { json = JSON.parse(t); } catch { continue; }
       }
       const norm = normalize(json);
-      if (norm.length) { raw = norm; break; }
+  if (norm.length) { raw = norm; break; }
     }catch(e){
       console.error('Fetch error for ' + url + ': ' + e.message);
     }
@@ -428,7 +444,7 @@ function buildCharts(ranged) {
     tension: ranged.length >= 2 ? .25 : 0,
     borderWidth: modeSel === 'volume' ? 0 : 2,
     pointRadius: ranged.length >= 2 ? 0 : 3,
-    clip: true // Ensure chart elements are clipped to the chart area
+    clip: true
   }];
 
   if (modeSel === 'price' && activeMAs.size) {
@@ -444,7 +460,7 @@ function buildCharts(ranged) {
         pointRadius: 0,
         tension: .25,
         spanGaps: true,
-        clip: true // Ensure chart elements are clipped to the chart area
+        clip: true
       });
     });
   }
@@ -486,7 +502,7 @@ function buildCharts(ranged) {
         },
         y: { 
           grid: { display: false },
-          beginAtZero: modeSel === 'volume' // Start at zero for volume charts
+          beginAtZero: modeSel === 'volume'
         }
       },
       onHover: (evt, elements) => {
@@ -498,12 +514,6 @@ function buildCharts(ranged) {
         } else if (volChart) {
           volChart.setActiveElements([]);
           volChart.update('none');
-        }
-      },
-      // Ensure the chart area has a transparent background
-      elements: {
-        point: {
-          backgroundColor: 'transparent'
         }
       }
     }
@@ -523,7 +533,7 @@ function buildCharts(ranged) {
           data: cap ? vols.map(v => Math.min(v, cap)) : vols, 
           backgroundColor: 'rgba(31,111,235,.30)', 
           borderWidth: 0,
-          clip: true // Ensure chart elements are clipped to the chart area
+          clip: true
         }] 
       },
       options: {
@@ -536,7 +546,7 @@ function buildCharts(ranged) {
           x: { display: false }, 
           y: { 
             display: false,
-            beginAtZero: true // Start at zero for volume charts
+            beginAtZero: true
           } 
         },
         layout: { 

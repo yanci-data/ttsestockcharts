@@ -413,8 +413,8 @@ function buildCharts(ranged) {
     data: mainData,
     type: modeSel === 'volume' ? 'bar' : 'line',
     borderColor: CONFIG.BLUE,
-    backgroundColor: modeSel === 'volume' ? 'rgba(31,111,235,.30)' : 'rgba(31,111,235,.12)',
-    fill: modeSel !== 'volume',
+    backgroundColor: 'transparent',
+    fill: false,
     tension: ranged.length >= 2 ? .25 : 0,
     borderWidth: modeSel === 'volume' ? 0 : 2,
     pointRadius: ranged.length >= 2 ? 0 : 3

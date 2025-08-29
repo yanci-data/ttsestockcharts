@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>TTSE Market Activity Ticker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- SF Pro will fall back to system on macOS; this link is a harmless hint -->
+  <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --up:#29C46D; --down:#F05050; --muted:#888; --flat:#1E6EF4;
+      --gap:36px; --speed:40; /* px/sec */
+    }
+    body{
+      margin:0; padding:0; background:transparent; color:#111;
+      font:350 15px/1.4 "SF Pro Display","SF Pro","-apple-system",system-ui,"Segoe UI",Roboto,Arial,sans-serif;
+    }
+    .ticker-bar{
+      display:flex; align-items:center; gap:16px;
+      padding:8px 12px; background:#fff; border-bottom:1px solid #eee;
+    }
+    .label, .asof{font-weight:350; font-size:15px}
+    .asof{color:var(--muted)}
+    .wrap{flex:1; overflow:hidden; white-space:nowrap}
+    .track{display:inline-flex; align-items:center; gap:var(--gap); will-change:transform}
+    .item{display:inline-flex; align-items:center; gap:8px; white-space:nowrap}
+    .sym{font-weight:400}
+    .px{font-weight:350; color:#333}
+    .ttd-alt{font-weight:350; color:#666; font-size:14px}
+    .chg{font-weight:350}
+    .chg.up{color:var(--up)} .chg.down{color:var(--down)} .chg.flat{color:var(--flat)}
+    .status{color:var(--muted); font-size:12px; padding:6px 12px 0}
+  </style>
+</head>
+<body>
+  <div class="ticker-bar">
+    <div class="label">TTSE Market Activity</div>
+    <div class="asof" id="asof"></div>
+    <div class="wrap"><div class="track" id="track"></div></div>
+  </div>
+  <div class="status" id="status"></div>
+
+  <script>
+    const DATA_URL = "https://datatt.yanci.co/stocks/ttse_market_ticker";
+
+    // formatters with thousands separators
+    const nf2 = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const toNum = v => (v==null || v==="") ? null : Number(v);
+    const p2 = n => n==null ? "—" : nf2.format(Number(n));
+
+    // Robust unwrapping for f0_.data / {data:[]} / [] payloads
+    function unwrapPayload(x){
+      if (Array.isArray(x)) return x;
+      if (x && typeof x === "object"){
+        if (Array.isArray(x.data)) return x.data;
+        if (x.f0_ && Array.isArray(x.f0_.data)) return x.f0_.data;
+        for (const k of Object.keys(x)){
+          const v = x[k];
+          if (Array.isArray(v)) return v;
+          if (v && typeof v === "object" && Array.isArray(v.data)) return v.data;
+        }
+      }
+      return [];
+    }
+
+    function normRow(r){
+      return {
+        symbol: r.symbol,
+        close: toNum(r.close),
+        changeDol: toNum(r.change_dol),
+        changePct: toNum(r.change_pct),
+        currency: r.trading_currency,
+        closeTTD: toNum(r.close_ttd),
+        tradeDate: r.trade_date
+      };
+    }
+
+    function setAsOfFromFirstTradeDate(rawData){
+      const asofEl = document.getElementById("asof");
+      const first = rawData.find(d => d && typeof d.trade_date === "string" && d.trade_date.length >= 10);
+      if (!first){ asofEl.textContent = ""; return; }
+      const [y,m,d] = first.trade_date.slice(0,10).split("-");
+      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      asofEl.textContent = `${months[parseInt(m,10)-1]} ${d}, ${y}`;
+    }
+
+    function buildHTML(items){
+      return items.map(it=>{
+        let icon="", cls="", change="";
+        if(it.changeDol > 0){ icon="▲"; cls="up"; change=`${p2(it.changeDol)} ${p2(it.changePct)}%`; }
+        else if(it.changeDol < 0){ icon="▼"; cls="down"; change=`${p2(it.changeDol)} ${p2(it.changePct)}%`; }
+        else { icon="●"; cls="flat"; } // flat: icon only, no values
+
+        let priceText = `${it.currency} ${p2(it.close)}`;
+        if(it.currency && it.currency !== "TTD" && it.closeTTD != null){
+          priceText += ` <span class="ttd-alt">(TTD ${p2(it.closeTTD)})</span>`;
+        }
+
+        return `<span class="item">
+                  <span class="sym">${it.symbol}</span>
+                  <span class="px">${priceText}</span>
+                  <span class="chg ${cls}">${icon}${change ? " " + change : ""}</span>
+                </span>`;
+      }).join("");
+    }
+
+    function startScroll(wrap, track){
+      // Duplicate once for seamless loop
+      track.innerHTML = track.innerHTML + track.innerHTML;
+
+      // Measure and animate from right → left using WAAPI
+      const measure = () => {
+        const wrapW = wrap.clientWidth || 1;
+        const contentW = track.scrollWidth; // full width (already duplicated)
+        const distance = contentW + wrapW;
+        const speed = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--speed")) || 40; // px/sec
+        const duration = Math.max(12, distance / speed) * 1000; // ms
+
+        // cancel previous animation if any
+        if (track._anim) track._anim.cancel();
+
+        track._anim = track.animate(
+          [
+            { transform: `translateX(${wrapW}px)` },   // start just off the right edge
+            { transform: `translateX(-${contentW}px)` } // move fully past the left
+          ],
+          { duration, iterations: Infinity, easing: "linear" }
+        );
+
+        // Pause on hover
+        wrap.onmouseenter = () => track._anim && track._anim.pause();
+        wrap.onmouseleave = () => track._anim && track._anim.play();
+      };
+
+      measure();
+      // Re-measure on resize to keep speed consistent
+      window.addEventListener("resize", () => requestAnimationFrame(measure), { passive:true });
+    }
+
+    async function init(){
+      const status = document.getElementById("status");
+      const wrap = document.querySelector(".wrap");
+      const track = document.getElementById("track");
+
+      try{
+        const res = await fetch(DATA_URL, { mode: "cors" });
+        const text = await res.text();
+        let json;
+        try { json = JSON.parse(text); } catch {
+          status.textContent = "Feed parse error (not JSON).";
+          return;
+        }
+
+        const rawData = unwrapPayload(json);
+        if (!rawData.length){
+          status.textContent = "No data available.";
+          return;
+        }
+        setAsOfFromFirstTradeDate(rawData);
+
+        // Move "Market Index" to the front if present
+        const data = [...rawData];
+        const mktIdx = data.findIndex(d => d.symbol === "Market Index");
+        if (mktIdx > -1) { const [mkt] = data.splice(mktIdx, 1); data.unshift(mkt); }
+
+        const items = data.map(normRow).filter(x => x.symbol && x.close != null);
+        const htmlOnce = buildHTML(items);
+        track.innerHTML = htmlOnce;
+
+        // Kick off animation after layout paints
+        requestAnimationFrame(() => startScroll(wrap, track));
+        status.textContent = "";
+      } catch (e){
+        status.textContent = "Could not load ticker data.";
+        console.error(e);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
